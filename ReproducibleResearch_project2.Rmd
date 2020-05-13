@@ -1,0 +1,298 @@
+---
+title: "How Severe Weather Events Affect Health and the Economy"
+subtitle: "Reproducible Research Course Project #2"
+author: "Kevin Bitinsky"
+date: "2020-05-10"
+output:
+  tufte::tufte_html:
+      margin_references: true
+  tufte::tufte_handout:
+    citation_package: natbib
+    latex_engine: xelatex
+  tufte::tufte_book:
+    citation_package: natbib
+    latex_engine: xelatex
+#bibliography: skeleton.bib
+link-citations: yes
+---
+::: {.fullwidth}
+
+# Synopisis
+This report investigates data from the NOAA Storm Database to identify the type of storms that cause the greatest impact to both population health and economic damage. The data examined is from 1950 to 2011; in the earlier years of this dataset there are generally fewer events recorded. However, no attempts were made to compensate for the fewer recorded events.
+
+According to the data that was accesssed, and this analysis, the worst impacts are: 
+
+* **Tornados** - which inflicted nearly 100,000 injuries and fatalities, combined.
+* **Floods** - which caused over $150 billion in damages.
+
+# Background
+
+The Storm Data may be found at the course website Coursera Reproducible Research: [storm data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2)
+
+For more information available from the [National Centers for Environmental Information](https://www.ncdc.noaa.gov/stormevents/):
+
+* National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+* National Climatic Data Center Storm Events [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
+
+
+# Data Processing
+
+```{r load_library, echo = TRUE,  warnings = FALSE, message = FALSE }
+library(tidyverse)
+library(tufte)
+library(stringdist)
+```
+
+## Load the data
+* Download the data, if it doesn't already exist within the local ./data subfolder.  
+* Read it in using the base read.csv() function. Note that the data is read in directly from the compressed bz2 format.
+```{r load, warnings = FALSE, cache = TRUE}
+url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+ifelse(!dir.exists(file.path("data")), 
+       dir.create(file.path("data")), "Folder already exists")
+destfile <- "./data/StormData.csv.bz2" 
+if (!file.exists(destfile)) {
+  download.file(url ,destfile,method="curl") 
+}
+data <- read.csv(bzfile("./data/StormData.csv.bz2"), 
+                 header = TRUE, stringsAsFactors = FALSE)
+str(data) # examine the structure of the data 
+```
+
+
+## Transform the data
+From the related documentation, it appears that the only the following variables are useful for this study:
+
+* **EVTYPE**, the event type
+* **FATALITIES**, the number of fatalities
+* **INJURIES**, the number of injuries
+* **PROPDMG**, the amount of property damage
+* **PROPDMGEXP**, the exponent of the property damage
+* **CROPDMG**, the amount of crop damage
+* **CROPDMGEXP**, the exponent of the crop damage 
+
+``` {r subset}
+#subset data for only relevent columns
+data<- data[c("EVTYPE","FATALITIES","INJURIES","PROPDMG","PROPDMGEXP",
+              "CROPDMG","CROPDMGEXP")]
+```
+
+According to the National Weather Service Storm Data Documentation, _2.1.1 Storm Data Event Table_, there are 48 event types (EVTYPE).
+
+> `r tufte::quote_footer('--- National Weather Service Storm Data Documentation - Section2.1.1 - STORM DATA EVENT TABLE')`
+
+However, the count of the unique values for EVTYPE reveal that there are actually 985 distinct event types in the data. Inspection of the data reveals that the there is case-sensitivity, spelling errors, and other information that was added to the EVTYPE.
+
+The package _stringdist::amatch()_ was used in an attempt to find the approximate match.
+Note that the parameters of amatch() used were selected simply following suggestions in Stack Overflow [String Matching](https://stackoverflow.com/questions/22371212/string-matching-using-stringdist-and-amatch-in-r). Other parameters were attempted but not much effort spent in trying to optimize this process.
+
+
+
+```{r transform_EVTYPE }
+print("number of event types before processing:")
+length(unique(data$EVTYPE))
+
+#convert EVTYPE to lower case to help improve matching and reduce redundancy
+data<- data %>% mutate(EVTYPE = tolower(EVTYPE))
+
+# EVTYPES copied from 2.1.1 Storm Data Event Table 
+#     (again, convert to lower case to improve matching)
+event_names <- tolower(c("Astronomical Low Tide", "Avalanche", "Blizzard", 
+                 "Coastal Flood", "Cold/Wind Chill", "Debris Flow", "Dense Fog", 
+                 "Dense Smoke", "Drought", "Dust Devil", "Dust Storm", 
+                 "Excessive Heat", "Extreme Cold/Wind Chill", "Flash Flood", 
+                 "Flood", "Frost/Freeze", "Funnel Cloud", "Freezing Fog", 
+                 "Hail", "Heat", "Heavy Rain", "Heavy Snow", "High Surf", 
+                 "High Wind", "Hurricane (Typhoon)", "Ice Storm", 
+                 "Lake-Effect Snow", "Lakeshore Flood ", "Lightning", 
+                 "Marine Hail", "Marine High Wind", "Marine Strong Wind", 
+                 "Marine Thunderstorm Wind", "Rip Current", "Seiche", "Sleet",
+                 "Storm Surge/Tide", "Strong Wind", "Thunderstorm Wind", 
+                 "Tornado", "Tropical Depression", "Tropical Storm", 
+                 "Tsunami", "Volcanic Ash", "Waterspout", "Wildfire", 
+                 "Winter Storm", "Winter Weather"))
+
+data$EVTYPE <- data$EVTYPE <- fct_explicit_na(factor(
+          amatch(data$EVTYPE, table = event_names, method='osa',maxDist=4), 
+          levels = 1:48, labels = event_names),
+          na_level = "unknown")
+
+print("number of event types after processing:")
+length(unique(data$EVTYPE))
+```
+
+
+## Process the Population Health data 
+It is assumed that the public health factors that are of interest would be the total number of inujuries, and the total fatalities. Summarize the data to find each total by the Event Type. This is done by using _dplyr_.
+The most harmful events are what is of interest, therefore only the top ten are kept. However, it would be easy to keep all 48, if it were required for future studies.
+_tidyr::gather()_ is then used to create a tidy dataset.
+```{r population_health}
+#Subset for factors affecting population health
+populationHealth <- data %>% 
+      group_by(EVTYPE) %>%
+      summarize(injuries = sum(INJURIES), fatalities = sum(FATALITIES))
+
+# Distill the Top 10 data, for both injuries and fatalities.
+
+# add the factors together
+populationHealth$sum <- populationHealth$injuries + populationHealth$fatalities 
+#order by sum
+populationHealth <- populationHealth[order(-populationHealth$sum),] 
+#remove sum column (extraneous information)
+populationHealth <- populationHealth[-4] 
+#select the top ten
+populationHealth <- populationHealth[1:10,] 
+
+#gather the data to convert to long format
+populationHealth <- gather(populationHealth, "fatalities", "injuries",
+                           key = "incident", value = "cases")
+populationHealth <- populationHealth[order(-populationHealth$cases),]
+head(populationHealth)
+```
+
+## Process the Economic Damage data 
+
+As per the information sheet describing the data, the _xDMG_ and _xDMGEXP_ variables together indicate the economic cost. xDMG is the value and xDMGEXP is the exponent, or multiplier. However, the xDMGEXP is not given in numeric values, but in acronyms.
+
+> Estimates should be rounded to three significant digits, followed by an alphabetical 
+> character signifying the magnitude of the number, i.e., 1.55B for $1,550,000,000. 
+> Alphabetical characters used to signify magnitude include “K” for thousands, “M” for 
+> millions, and “B” for billions.
+
+> `r tufte::quote_footer('--- National Weather Service Storm Data Documentation - Section2.7 - STORM DATA PREPARATION')`
+
+Examine the possible values within the xDMGEXP variables:
+```{r DMGEXP_analysis}
+unique(data$PROPDMGEXP)
+unique(data$CROPDMGEXP)
+```
+
+As can be seen above, there are many entries that include other characters besides those described within the documentation ("K", "M", or "B"). Most of the other characters are numeric. Therefore, my assumption is that the character is always representative of the scientific notation exponent.
+
+|  xDMGEXP|meaning|numeric|  value   |
+|:-------:|:-----:|:-----:|:--------:|
+|    0    | base  |  0    | $10^{0}$ | 
+|    1    |       |  1    | $10^{1}$ |
+| H, h, 2 | hecto |  2    | $10^{2}$ |
+| K, k, 3 | kilo  |  3    | $10^{3}$ |
+|    4    |       |  4    | $10^{4}$ |
+|    5    |       |  5    | $10^{5}$ |
+| M, m, 6 | mega  |  6    | $10^{6}$ |
+|    7    |       |  7    | $10^{7}$ |
+|    8    |       |  8    | $10^{8}$ |
+| B, b, 9 | giga  |  9    | $10^{9}$ |
+
+There are other characters, but for now conider them to mean it is a multiplier of 1.
+
+AS with Population Health, the data is summarize to find each total by the Event Type. 
+Only the ten most harmful events are kept and then the data is converted to a tidy dataset.
+```{r Econ_data}
+#Convert multiplier to numeric
+data$PROPDMGEXP <- as.numeric(recode(data$PROPDMGEXP, 
+                           '0'             ='1e+0',
+                           '1'             ='1e+01', 
+                           'H'             ='1e+02',
+                           'h'             ='1e+02',
+                           '2'             ='1e+02',
+                           'K'             ='1e+03',
+                           'k'             ='1e+03',
+                           '3'             ='1e+03', 
+                           '4'             ='1e+04', 
+                           '5'             ='1e+05', 
+                           'M'             ='1e+06',
+                           'm'             ='1e+06',
+                           '6'             ='1e+06', 
+                           '7'             ='1e+07', 
+                           '8'             ='1e+08', 
+                           'B'             ='1e+09',
+                           'b'             ='1e+09',
+                           '9'             ='1e+09',
+                           .default        ='1'))
+
+data$CROPDMGEXP <- as.numeric(recode(data$CROPDMGEXP, 
+                           '0'             ='1e+0',
+                           '1'             ='1e+01', 
+                           'H'             ='1e+02',
+                           'h'             ='1e+02',
+                           '2'             ='1e+02',
+                           'K'             ='1e+03',
+                           'k'             ='1e+03',
+                           '3'             ='1e+03', 
+                           '4'             ='1e+04', 
+                           '5'             ='1e+05', 
+                           'M'             ='1e+06',
+                           'm'             ='1e+06',
+                           '6'             ='1e+06', 
+                           '7'             ='1e+07', 
+                           '8'             ='1e+08', 
+                           'B'             ='1e+09',
+                           'b'             ='1e+09',
+                           '9'             ='1e+09',
+                           .default        ='1'))
+
+
+#Mulitply value by the exponent                           
+data$PropDmgTotl <- data$PROPDMG * data$PROPDMGEXP
+data$CropDmgTotl <- data$CROPDMG * data$CROPDMGEXP
+
+#Subset for factors affecting economic data
+econDamage <- data %>% 
+      group_by(EVTYPE) %>%
+      summarize(property = sum(PropDmgTotl), crop = sum(CropDmgTotl))
+
+# Distill the Top 10 data, for both property and crop damage
+
+# add the factors together
+econDamage$sum <- econDamage$property + econDamage$crop 
+#order by sum
+econDamage <- econDamage[order(-econDamage$sum),] 
+#remove sum
+econDamage <- econDamage[1:3] 
+#select the top ten
+econDamage <- econDamage[1:10,] 
+
+
+#gather the data to convert to long format
+econDamage <- gather(econDamage, "property", "crop", key = "incident", value = "value")
+econDamage <- econDamage[order(-econDamage$value),]
+head(econDamage)
+```
+# Results
+
+## Population Health
+### Question: Across the United States, which types of events are most harmful with respect to population health?
+
+Assume that there is no weighting for fatalities vs injuries. I.e., it is the _total_ number of all incidents affecting health that are important. Therefore, as per the following chart, the event that causes the largest impact to population health are **tornados** with **91346 total incidents**.
+
+```{r population_results, fig.cap = "Fig 1. How Severe Weather Events Affect Population Health.", fig.fullwidth = TRUE}
+ggplot(data=populationHealth, 
+       aes(x=reorder(EVTYPE, -cases), y = cases, fill = incident)) + 
+  geom_bar(stat="identity") + 
+  theme(axis.text.x = element_text(angle=90)) + 
+  ggtitle("Population Health Inflicted by Storms") +
+  xlab("Storm Type") +
+  ylab("Number of Incidents")
+```
+
+## Economic Damage
+### Question: Across the United States, which types of events have the greatest economic consequences?
+
+As indicated in the following chart, the event that causes the largest economic impact are **floods** with over **144 billion dollars in total damages**.
+
+```{r econresults, fig.cap = "Fig 2. How Severe Weather Events Affect Economic Health.", fig.fullwidth = TRUE}
+ggplot(data=econDamage, 
+       aes(x=reorder(EVTYPE, -value), y = value/1e+9, fill = incident)) + 
+  geom_bar(stat="identity") + 
+  theme(axis.text.x = element_text(angle=90)) + 
+  ggtitle("Economic Damage Inflicted by Storms") +
+  xlab("Storm Type") +
+  ylab("Cost of Damage (Billion $)") 
+```
+
+## Note About Results
+* This report relies heavily upon both the event type (EVTYPE) being accurate and the costs being entered correctly. Both fields are questionable and further refinement would need to be made to be able to draw reliable conclusions.
+* The EVTYPE entries are not in the format dictated by the specification.
+The specification states that event name should be the one that most accurately describes the meteorological event. However, from the data it appears that multiple events were included in single entires. Therefore further work needs to be completed in order to determine which is the appropriate event to use (or divide up those data points).
+* Most entries do not follow the specified format, often employing abbreviations. A mapping could be created to line up abbreviations with their appropriate event name. However, according to the specification there are multiple similar events; such as Cold/Wind Chill vs Extreme Cold/Wind Chill which further complicates how to determine which was the intended EVTYPE.
+* The specification identifies how to utilize the cost exponent field, which does not appear to have been followed. Assumptions were made on how to deal with this but those assumptions introduce error into the analysis.
+:::
