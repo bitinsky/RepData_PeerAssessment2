@@ -3,36 +3,38 @@ title: "How Severe Weather Events Affect Health and the Economy"
 subtitle: "Reproducible Research Course Project #2"
 author: "Kevin Bitinsky"
 date: "2020-05-10"
-output:
-  tufte::tufte_html:
-      margin_references: true
-  tufte::tufte_handout:
-    citation_package: natbib
-    latex_engine: xelatex
-  tufte::tufte_book:
-    citation_package: natbib
-    latex_engine: xelatex
-#bibliography: skeleton.bib
-link-citations: yes
+output: 
+  html_document:
+    toc: true
+    toc_depth: 4
+    toc_float: true
+    number_sections: true
+    theme: united
+    highlight: tango
 ---
-::: {.fullwidth}
 
 # Synopisis
 This report investigates data from the NOAA Storm Database to identify the type of storms that cause the greatest impact to both population health and economic damage. The data examined is from 1950 to 2011; in the earlier years of this dataset there are generally fewer events recorded. However, no attempts were made to compensate for the fewer recorded events.
 
-According to the data that was accesssed, and this analysis, the worst impacts are: 
+According to the data that was accesssed, and this analysis, the worst impacts are:  
 
-* **Tornados** - which inflicted nearly 100,000 injuries and fatalities, combined.
-* **Floods** - which caused over $150 billion in damages.
+* **Tornados** - which inflicted nearly 100,000 injuries and fatalities, combined.  
+* **Floods** - which caused over $150 billion in damages.  
 
 # Background
 
-The Storm Data may be found at the course website Coursera Reproducible Research: [storm data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2)
+The Storm Data may be found at the course website [Coursera Reproducible Research][1]: [storm data][2]
 
-For more information available from the [National Centers for Environmental Information](https://www.ncdc.noaa.gov/stormevents/):
+For more information available from the [National Centers for Environmental Information][3]:  
 
-* National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
-* National Climatic Data Center Storm Events [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
+* National Weather Service [Storm Data Documentation][4]  
+* National Climatic Data Center Storm Events [FAQ][5]  
+
+[1]: https://www.coursera.org/learn/reproducible-research "Coursera Reproducible Research"
+[2]: https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2 "storm data"
+[3]: https://www.ncdc.noaa.gov/stormevents/ "National Centers for Environmental Information"
+[4]: https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf "National Weather Service Storm Data Documentation"
+[5]: https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf "National Climatic Data Center Storm Events FAQ"
 
 
 # Data Processing
@@ -43,7 +45,7 @@ library(tufte)
 library(stringdist)
 ```
 
-## Load the data
+## Load the data  
 * Download the data, if it doesn't already exist within the local ./data subfolder.  
 * Read it in using the base read.csv() function. Note that the data is read in directly from the compressed bz2 format.
 ```{r load, warnings = FALSE, cache = TRUE}
@@ -61,15 +63,15 @@ str(data) # examine the structure of the data
 
 
 ## Transform the data
-From the related documentation, it appears that the only the following variables are useful for this study:
+From the related documentation, it appears that the only the following variables are useful for this study:  
 
-* **EVTYPE**, the event type
-* **FATALITIES**, the number of fatalities
-* **INJURIES**, the number of injuries
-* **PROPDMG**, the amount of property damage
-* **PROPDMGEXP**, the exponent of the property damage
-* **CROPDMG**, the amount of crop damage
-* **CROPDMGEXP**, the exponent of the crop damage 
+* **EVTYPE**, the event type  
+* **FATALITIES**, the number of fatalities  
+* **INJURIES**, the number of injuries  
+* **PROPDMG**, the amount of property damage  
+* **PROPDMGEXP**, the exponent of the property damage  
+* **CROPDMG**, the amount of crop damage  
+* **CROPDMGEXP**, the exponent of the crop damage   
 
 ``` {r subset}
 #subset data for only relevent columns
@@ -77,16 +79,15 @@ data<- data[c("EVTYPE","FATALITIES","INJURIES","PROPDMG","PROPDMGEXP",
               "CROPDMG","CROPDMGEXP")]
 ```
 
-According to the National Weather Service Storm Data Documentation, _2.1.1 Storm Data Event Table_, there are 48 event types (EVTYPE).
-
-> `r tufte::quote_footer('--- National Weather Service Storm Data Documentation - Section2.1.1 - STORM DATA EVENT TABLE')`
+According to the National Weather Service Storm Data Documentation, (_Section2.1.1 - Storm Data Event Table_), there are 48 event types (EVTYPE).
 
 However, the count of the unique values for EVTYPE reveal that there are actually 985 distinct event types in the data. Inspection of the data reveals that the there is case-sensitivity, spelling errors, and other information that was added to the EVTYPE.
 
-The package _stringdist::amatch()_ was used in an attempt to find the approximate match.
-Note that the parameters of amatch() used were selected simply following suggestions in Stack Overflow [String Matching](https://stackoverflow.com/questions/22371212/string-matching-using-stringdist-and-amatch-in-r). Other parameters were attempted but not much effort spent in trying to optimize this process.
+The package [stringdist::amatch()][6] was used in an attempt to find the approximate match.
+Note that the parameters of amatch() used were selected simply following suggestions in Stack Overflow [String Matching][7]. Other parameters were attempted but not much effort spent in trying to optimize this process.
 
-
+[6]: https://cran.r-project.org/web/packages/stringdist/stringdist.pdf "stringdist"
+[7]: https://stackoverflow.com/questions/22371212/string-matching-using-stringdist-and-amatch-in-r "Stack Overflow - String Matching"
 
 ```{r transform_EVTYPE }
 print("number of event types before processing:")
@@ -158,8 +159,8 @@ As per the information sheet describing the data, the _xDMG_ and _xDMGEXP_ varia
 > character signifying the magnitude of the number, i.e., 1.55B for $1,550,000,000. 
 > Alphabetical characters used to signify magnitude include “K” for thousands, “M” for 
 > millions, and “B” for billions.
-
-> `r tufte::quote_footer('--- National Weather Service Storm Data Documentation - Section2.7 - STORM DATA PREPARATION')`
+>
+> --- National Weather Service Storm Data Documentation - Section2.7 - STORM DATA PREPARATION
 
 Examine the possible values within the xDMGEXP variables:
 ```{r DMGEXP_analysis}
@@ -295,4 +296,5 @@ ggplot(data=econDamage,
 The specification states that event name should be the one that most accurately describes the meteorological event. However, from the data it appears that multiple events were included in single entires. Therefore further work needs to be completed in order to determine which is the appropriate event to use (or divide up those data points).
 * Most entries do not follow the specified format, often employing abbreviations. A mapping could be created to line up abbreviations with their appropriate event name. However, according to the specification there are multiple similar events; such as Cold/Wind Chill vs Extreme Cold/Wind Chill which further complicates how to determine which was the intended EVTYPE.
 * The specification identifies how to utilize the cost exponent field, which does not appear to have been followed. Assumptions were made on how to deal with this but those assumptions introduce error into the analysis.
-:::
+
+
