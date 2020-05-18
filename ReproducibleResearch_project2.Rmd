@@ -14,12 +14,14 @@ output:
 ---
 
 # Synopisis
-This report investigates data from the NOAA Storm Database to identify the type of storms that cause the greatest impact to both population health and economic damage. The data examined is from 1950 to 2011; in the earlier years of this dataset there are generally fewer events recorded. However, no attempts were made to compensate for the fewer recorded events.
+This report investigates data from the National Oceanic and Atmospheric Administrationv(NOAA) Storm Database to identify the type of storms that cause the greatest impact to both population health and economic damage. 
 
-According to the data that was accesssed, and this analysis, the worst impacts are:  
+The data required some processing in order to structure and analyze it. However, according to the data that was accesssed, and this analysis, the worst impacts are:  
 
 * **Tornados** - which inflicted nearly 100,000 injuries and fatalities, combined.  
 * **Floods** - which caused over $150 billion in damages.  
+
+The following document will describe the extract, tranformation and analysis of the data in order to reach these conclusions.
 
 # Background
 
@@ -41,7 +43,6 @@ For more information available from the [National Centers for Environmental Info
 
 ```{r load_library, echo = TRUE,  warnings = FALSE, message = FALSE }
 library(tidyverse)
-library(tufte)
 library(stringdist)
 ```
 
@@ -270,7 +271,8 @@ ggplot(data=populationHealth,
        aes(x=reorder(EVTYPE, -cases), y = cases, fill = incident)) + 
   geom_bar(stat="identity") + 
   theme(axis.text.x = element_text(angle=90)) + 
-  ggtitle("Population Health Inflicted by Storms") +
+  ggtitle("Population Health Inflicted by Different Types of Storms",  
+    subtitle = "For both Fatalites and Injuries") +
   xlab("Storm Type") +
   ylab("Number of Incidents")
 ```
@@ -285,7 +287,8 @@ ggplot(data=econDamage,
        aes(x=reorder(EVTYPE, -value), y = value/1e+9, fill = incident)) + 
   geom_bar(stat="identity") + 
   theme(axis.text.x = element_text(angle=90)) + 
-  ggtitle("Economic Damage Inflicted by Storms") +
+  ggtitle("Economic Damage Inflicted by Different Types of Storms",
+    subtitle = "For Damages to Property and Crops") +
   xlab("Storm Type") +
   ylab("Cost of Damage (Billion $)") 
 ```
@@ -296,5 +299,13 @@ ggplot(data=econDamage,
 The specification states that event name should be the one that most accurately describes the meteorological event. However, from the data it appears that multiple events were included in single entires. Therefore further work needs to be completed in order to determine which is the appropriate event to use (or divide up those data points).
 * Most entries do not follow the specified format, often employing abbreviations. A mapping could be created to line up abbreviations with their appropriate event name. However, according to the specification there are multiple similar events; such as Cold/Wind Chill vs Extreme Cold/Wind Chill which further complicates how to determine which was the intended EVTYPE.
 * The specification identifies how to utilize the cost exponent field, which does not appear to have been followed. Assumptions were made on how to deal with this but those assumptions introduce error into the analysis.
+* The data examined is from 1950 to 2011; in the earlier years of this dataset there are generally fewer events recorded. However, no attempts were made to compensate for the fewer recorded events.
 
+# Environment
+The following is the environment in which this was run:
+```{r environment}
+sessionInfo()
+packageVersion("tidyverse")
+packageVersion("stringdist")
 
+```
